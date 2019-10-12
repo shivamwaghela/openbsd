@@ -10,3 +10,4 @@ revisit settings in param.h (FDT / ACPI / U-Area / Clusters / Buffer)
 <inline asm>:1:25: note: instantiated into assembly here
         amoor.w zero, 32, 0(a0)
                                ^
+
