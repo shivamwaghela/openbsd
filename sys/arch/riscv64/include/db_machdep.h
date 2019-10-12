@@ -1,100 +1,93 @@
 /*
- * Copyright (c) 2015-2016 Ruslan Bukin <br@bsdpad.com>
- * All rights reserved.
+ * Copyright (c) 1996 Scott K Stevens
  *
- * Portions of this software were developed by SRI International and the
- * University of Cambridge Computer Laboratory under DARPA/AFRL contract
- * FA8750-10-C-0237 ("CTSRD"), as part of the DARPA CRASH research programme.
+ * Mach Operating System
+ * Copyright (c) 1991,1990 Carnegie Mellon University
+ * All Rights Reserved.
  *
- * Portions of this software were developed by the University of Cambridge
- * Computer Laboratory as part of the CTSRD Project, with support from the
- * UK Higher Education Innovation Fund (HEIF).
+ * Permission to use, copy, modify and distribute this software and its
+ * documentation is hereby granted, provided that both the copyright
+ * notice and this permission notice appear in all copies of the
+ * software, derivative works or modified versions, and any portions
+ * thereof, and that both notices appear in supporting documentation.
  *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
+ * CARNEGIE MELLON ALLOWS FREE USE OF THIS SOFTWARE IN ITS "AS IS"
+ * CONDITION.  CARNEGIE MELLON DISCLAIMS ANY LIABILITY OF ANY KIND FOR
+ * ANY DAMAGES WHATSOEVER RESULTING FROM THE USE OF THIS SOFTWARE.
  *
- * THIS SOFTWARE IS PROVIDED BY THE AUTHOR AND CONTRIBUTORS ``AS IS'' AND
- * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- * ARE DISCLAIMED.  IN NO EVENT SHALL THE AUTHOR OR CONTRIBUTORS BE LIABLE
- * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
- * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS
- * OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
- * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
- * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
- * SUCH DAMAGE.
+ * Carnegie Mellon requests users of this software to return to
  *
- * $FreeBSD$
+ *  Software Distribution Coordinator  or  Software.Distribution@CS.CMU.EDU
+ *  School of Computer Science
+ *  Carnegie Mellon University
+ *  Pittsburgh PA 15213-3890
+ *
+ * any improvements or extensions that they make and grant Carnegie Mellon
+ * the rights to redistribute these changes.
  */
 
 #ifndef	_MACHINE_DB_MACHDEP_H_
 #define	_MACHINE_DB_MACHDEP_H_
 
+/*
+ * Machine-dependent defines for new kernel debugger.
+ */
+
 #include <sys/param.h>
+#include <uvm/uvm_extern.h>
 #include <machine/riscvreg.h>
 #include <machine/frame.h>
 #include <machine/trap.h>
 
-#define	T_BREAKPOINT	(EXCP_BREAKPOINT)
-#define	T_WATCHPOINT	(0)
+/* end of mangling */
 
-typedef vaddr_t 	db_addr_t;
-typedef long		db_expr_t;
+typedef vaddr_t		db_addr_t;	/* address - unsigned */
+typedef long		db_expr_t;	/* expression - signed */
 
-#define	PC_REGS(regs)	((db_addr_t)(regs)->tf_ra)
-#define	SET_PC_REGS(regs, value) (regs)->tf_ra = (int)(value)
+typedef trapframe_t db_regs_t;
 
-#define	BKPT_INST	(KERNEL_BREAKPOINT)
-#define	BKPT_SIZE	(INSN_SIZE)
-#define	BKPT_SET(inst)	(BKPT_INST)
+extern db_regs_t		ddb_regs;	/* register state */
+#define DDB_REGS	(&ddb_regs)
 
-#define	BKPT_SKIP do {				\
-	kdb_frame->tf_sepc += BKPT_SIZE;	\
-} while (0)
+#define PC_REGS(regs)	((db_addr_t)(regs)->tf_ra)
+#define SET_PC_REGS(regs, value)	(regs)->tf_ra = (register_t)(value)
 
-#define	db_clear_single_step	kdb_cpu_clear_singlestep
-#define	db_set_single_step	kdb_cpu_set_singlestep
+#define BKPT_INST	(KERNEL_BREAKPOINT)	/* breakpoint instruction */
+#define BKPT_SIZE	(INSN_SIZE)		/* size of breakpoint inst */
+#define BKPT_SET(inst)	(BKPT_INST)
 
-#define	IS_BREAKPOINT_TRAP(type, code)	(type == T_BREAKPOINT)
-#define	IS_WATCHPOINT_TRAP(type, code)	(type == T_WATCHPOINT)
+// XXX Is this right?
+#define T_BREAKPOINT			(1)
 
-#define	inst_trap_return(ins)	(ins == 0x10000073)	/* eret */
-#define	inst_return(ins)	(ins == 0x00008067)	/* ret */
-#define	inst_call(ins)		(((ins) & 0x7f) == 111 || \
-				 ((ins) & 0x7f) == 103) /* jal, jalr */
+#define IS_BREAKPOINT_TRAP(type, code)	((type) == T_BREAKPOINT)
+#define IS_WATCHPOINT_TRAP(type, code)	(0)
 
-#define	inst_load(ins) ({							\
-	uint64_t tmp_instr = db_get_value(PC_REGS(regs), sizeof(uint64_t), FALSE);	\
-	is_load_instr(tmp_instr);						\
-})
+// XXX ALL BROKEN!!!
+#define inst_trap_return(ins)	((ins) == 0 && (ins) == 1)
+#define inst_return(ins)	((ins) == 0 && (ins) == 1)
 
-#define	inst_store(ins) ({							\
-	uint64_t tmp_instr = db_get_value(PC_REGS(regs), sizeof(uint64_t), FALSE);	\
-	is_store_instr(tmp_instr);						\
-})
+#define inst_call(ins)		((ins) == 0 && (ins) == 1)
+#define inst_branch(ins)	((ins) == 0 && (ins) == 1)
+#define inst_unconditional_flow_transfer(ins)	(0)
 
-#define	is_load_instr(ins)	(((ins) & 0x7f) == 3)
-#define	is_store_instr(ins)	(((ins) & 0x7f) == 35)
-
-#define	next_instr_address(pc, bd)	((bd) ? (pc) : ((pc) + 4)) // INSN_SIZE == 4 ??
+#define getreg_val			(0)
+#define next_instr_address(pc, bd)	((bd) ? (pc) : ((pc) + INSN_SIZE))
 
 #define DB_MACHINE_COMMANDS
 
 #define SOFTWARE_SSTEP
 
+db_addr_t db_branch_taken(u_int inst, db_addr_t pc, db_regs_t *regs);
+int kdb_trap (int, db_regs_t *);
+void db_machine_init (void);
+
 #define branch_taken(ins, pc, fun, regs) \
 	db_branch_taken((ins), (pc), (regs))
 
-/* For ddb_state */
-#define DDB_STATE_NOT_RUNNING	0
+void db_show_frame_cmd(db_expr_t, int, db_expr_t, char *);
+
+#define DDB_STATE_NOT_RUNNING	0  
 #define DDB_STATE_RUNNING	1
 #define DDB_STATE_EXITING	2
 
-#endif /* !_MACHINE_DB_MACHDEP_H_ */
+#endif	/* _MACHINE_DB_MACHDEP_H_ */
